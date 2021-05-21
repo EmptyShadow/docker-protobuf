@@ -3,6 +3,7 @@ ARG DART_VERSION
 ARG GO_VERSION
 ARG RUST_VERSION
 ARG SWIFT_VERSION
+ARG NODE_VERSION
 
 FROM alpine:${ALPINE_VERSION} as protoc_builder
 RUN apk add --no-cache build-base curl automake autoconf libtool git zlib-dev linux-headers cmake ninja
@@ -73,6 +74,13 @@ RUN mkdir -p ${GOPATH}/src/github.com/TheThingsIndustries/protoc-gen-fieldmask &
     go build -ldflags '-w -s' -o /protoc-gen-fieldmask-out/protoc-gen-fieldmask . && \
     install -Ds /protoc-gen-fieldmask-out/protoc-gen-fieldmask /out/usr/bin/protoc-gen-fieldmask
 
+ARG PROTOC_GEN_GO_GRPC_VERSION
+RUN mkdir -p ${GOPATH}/src/github.com/grpc/grpc-go && \
+    curl -sSL https://api.github.com/repos/grpc/grpc-go/tarball/v${PROTOC_GEN_GO_GRPC_VERSION} | tar xz --strip 1 -C ${GOPATH}/src/github.com/grpc/grpc-go &&\
+    cd ${GOPATH}/src/github.com/grpc/grpc-go/cmd/protoc-gen-go-grpc && \
+    go build -ldflags '-w -s' -o /golang-protobuf-out/protoc-gen-go-grpc . && \
+    install -Ds /golang-protobuf-out/protoc-gen-go-grpc /out/usr/bin/protoc-gen-go-grpc
+
 ARG PROTOC_GEN_GO_VERSION
 RUN mkdir -p ${GOPATH}/src/github.com/golang/protobuf && \
     curl -sSL https://api.github.com/repos/golang/protobuf/tarball/v${PROTOC_GEN_GO_VERSION} | tar xz --strip 1 -C ${GOPATH}/src/github.com/golang/protobuf &&\
@@ -103,16 +111,23 @@ RUN mkdir -p ${GOPATH}/src/github.com/TheThingsIndustries/protoc-gen-gogottn && 
     go build -ldflags '-w -s' -o /protoc-gen-gogottn-out/protoc-gen-gogottn . && \
     install -Ds /protoc-gen-gogottn-out/protoc-gen-gogottn /out/usr/bin/protoc-gen-gogottn
 
+ARG PROTOC_GEN_GOVALIDATORS_VERSION
+RUN mkdir -p ${GOPATH}/src/github.com/mwitkow/go-proto-validators && \
+    curl -sSL https://api.github.com/repos/mwitkow/go-proto-validators/tarball/v${PROTOC_GEN_GOVALIDATORS_VERSION} | tar xz --strip 1 -C ${GOPATH}/src/github.com/mwitkow/go-proto-validators && \
+    cd ${GOPATH}/src/github.com/mwitkow/go-proto-validators && \
+    mkdir /go-proto-validators-out && \
+    go build -ldflags '-w -s' -o /go-proto-validators-out ./... && \
+    install -Ds /go-proto-validators-out/protoc-gen-govalidators /out/usr/bin/protoc-gen-govalidators && \
+    install -D ./validator.proto /out/usr/include/github.com/mwitkow/go-proto-validators/validator.proto
+
 ARG PROTOC_GEN_GQL_VERSION
 RUN mkdir -p ${GOPATH}/src/github.com/danielvladco/go-proto-gql && \
     curl -sSL https://api.github.com/repos/danielvladco/go-proto-gql/tarball/v${PROTOC_GEN_GQL_VERSION} | tar xz --strip 1 -C ${GOPATH}/src/github.com/danielvladco/go-proto-gql && \
     cd ${GOPATH}/src/github.com/danielvladco/go-proto-gql && \
     go build -ldflags '-w -s' -o /go-proto-gql-out/protoc-gen-gql ./protoc-gen-gql && \
-    go build -ldflags '-w -s' -o /go-proto-gql-out/protoc-gen-gogqlgen ./protoc-gen-gogqlgen && \
-    go build -ldflags '-w -s' -o /go-proto-gql-out/protoc-gen-gqlgencfg ./protoc-gen-gqlgencfg && \
+    go build -ldflags '-w -s' -o /go-proto-gql-out/protoc-gen-gogql ./protoc-gen-gogql && \
     install -Ds /go-proto-gql-out/protoc-gen-gql /out/usr/bin/protoc-gen-gql && \
-    install -Ds /go-proto-gql-out/protoc-gen-gogqlgen /out/usr/bin/protoc-gen-gogqlgen && \
-    install -Ds /go-proto-gql-out/protoc-gen-gqlgencfg /out/usr/bin/protoc-gen-gqlgencfg
+    install -Ds /go-proto-gql-out/protoc-gen-gogql /out/usr/bin/protoc-gen-gogql
 
 ARG PROTOC_GEN_LINT_VERSION
 RUN cd / && \
@@ -135,21 +150,25 @@ RUN mkdir -p ${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway && \
     curl -sSL https://api.github.com/repos/grpc-ecosystem/grpc-gateway/tarball/v${GRPC_GATEWAY_VERSION} | tar xz --strip 1 -C ${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway && \
     cd ${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway && \
     go build -ldflags '-w -s' -o /grpc-gateway-out/protoc-gen-grpc-gateway ./protoc-gen-grpc-gateway && \
-    go build -ldflags '-w -s' -o /grpc-gateway-out/protoc-gen-swagger ./protoc-gen-swagger && \
+    go build -ldflags '-w -s' -o /grpc-gateway-out/protoc-gen-openapiv2 ./protoc-gen-openapiv2 && \
     install -Ds /grpc-gateway-out/protoc-gen-grpc-gateway /out/usr/bin/protoc-gen-grpc-gateway && \
-    install -Ds /grpc-gateway-out/protoc-gen-swagger /out/usr/bin/protoc-gen-swagger && \
-    mkdir -p /out/usr/include/protoc-gen-swagger/options && \
-    install -D $(find ./protoc-gen-swagger/options -name '*.proto') -t /out/usr/include/protoc-gen-swagger/options && \
-    mkdir -p /out/usr/include/google/api && \
-    install -D $(find ./third_party/googleapis/google/api -name '*.proto') -t /out/usr/include/google/api && \
-    mkdir -p /out/usr/include/google/rpc && \
-    install -D $(find ./third_party/googleapis/google/rpc -name '*.proto') -t /out/usr/include/google/rpc
+    install -Ds /grpc-gateway-out/protoc-gen-openapiv2 /out/usr/bin/protoc-gen-openapiv2 && \
+    mkdir -p /out/usr/include/protoc-gen-openapiv2/options && \
+    install -D $(find ./protoc-gen-openapiv2/options -name '*.proto') -t /out/usr/include/protoc-gen-openapiv2/options
+
+ARG GOOGLE_API_VERSION
+RUN mkdir -p ${GOPATH}/src/github.com/googleapis/googleapis && \
+    curl -sSL https://api.github.com/repos/googleapis/googleapis/tarball/${GOOGLE_API_VERSION} | tar xz --strip 1 -C ${GOPATH}/src/github.com/googleapis/googleapis && \
+    cd ${GOPATH}/src/github.com/googleapis/googleapis && \
+    install -D ./google/api/annotations.proto /out/usr/include/google/api/annotations.proto && \
+    install -D ./google/api/field_behavior.proto /out/usr/include/google/api/field_behavior.proto && \
+    install -D ./google/api/http.proto /out/usr/include/google/api/http.proto && \
+    install -D ./google/api/httpbody.proto /out/usr/include/google/api/httpbody.proto
 
 
-FROM rust:${RUST_VERSION}-slim as rust_builder
-RUN apt-get update && apt-get install -y musl-tools curl
+FROM rust:${RUST_VERSION}-alpine as rust_builder
+RUN apk add --no-cache curl
 RUN rustup target add x86_64-unknown-linux-musl
-ENV RUSTFLAGS='-C linker=musl-gcc'
 
 ARG RUST_PROTOBUF_VERSION
 RUN mkdir -p /rust-protobuf && \
@@ -170,16 +189,17 @@ RUN apt-get update && \
 ARG GRPC_SWIFT_VERSION
 RUN mkdir -p /grpc-swift && \
     curl -sSL https://api.github.com/repos/grpc/grpc-swift/tarball/${GRPC_SWIFT_VERSION} | tar xz --strip 1 -C /grpc-swift && \
-    cd /grpc-swift && make && \
+    cd /grpc-swift && make && make plugins && \
     install -Ds /grpc-swift/protoc-gen-swift /protoc-gen-swift/protoc-gen-swift && \
-    install -Ds /grpc-swift/protoc-gen-swiftgrpc /protoc-gen-swift/protoc-gen-swiftgrpc && \
+    install -Ds /grpc-swift/protoc-gen-grpc-swift /protoc-gen-swift/protoc-gen-grpc-swift && \
     cp /lib64/ld-linux-x86-64.so.2 \
-        $(ldd /protoc-gen-swift/protoc-gen-swift /protoc-gen-swift/protoc-gen-swiftgrpc | awk '{print $3}' | grep /lib | sort | uniq) \
+        $(ldd /protoc-gen-swift/protoc-gen-swift /protoc-gen-swift/protoc-gen-grpc-swift | awk '{print $3}' | grep /lib | sort | uniq) \
         /protoc-gen-swift/ && \
     find /protoc-gen-swift/ -name 'lib*.so*' -exec patchelf --set-rpath /protoc-gen-swift {} \; && \
-    for p in protoc-gen-swift protoc-gen-swiftgrpc; do \
+    for p in protoc-gen-swift protoc-gen-grpc-swift; do \
         patchelf --set-interpreter /protoc-gen-swift/ld-linux-x86-64.so.2 /protoc-gen-swift/${p}; \
     done
+
 
 FROM google/dart:${DART_VERSION} as dart_builder
 RUN apt-get update && apt-get install -y musl-tools curl
@@ -189,6 +209,7 @@ RUN mkdir -p /dart-protobuf && \
     curl -sSL https://api.github.com/repos/dart-lang/protobuf/tarball/protobuf-${DART_PROTOBUF_VERSION} | tar xz --strip 1 -C /dart-protobuf && \
     cd /dart-protobuf/protoc_plugin && pub install && dart2native --verbose bin/protoc_plugin.dart -o protoc_plugin && \
     install -D /dart-protobuf/protoc_plugin/protoc_plugin /out/usr/bin/protoc-gen-dart
+
 
 FROM alpine:${ALPINE_VERSION} as packer
 RUN apk add --no-cache curl
@@ -214,9 +235,13 @@ RUN upx --lzma $(find /out/usr/bin/ \
     )
 RUN find /out -name "*.a" -delete -or -name "*.la" -delete
 
-FROM alpine:${ALPINE_VERSION}
+
+FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION}
+
+ARG TS_PROTOC_GEN_VERSION
 LABEL maintainer="Roman Volosatovs <roman@thethingsnetwork.org>"
 COPY --from=packer /out/ /
+RUN npm install -g ts-protoc-gen@${TS_PROTOC_GEN_VERSION} && npm cache clean --force
 RUN apk add --no-cache bash libstdc++ && \
     wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
     wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.31-r0/glibc-2.31-r0.apk && \
@@ -229,7 +254,8 @@ RUN apk add --no-cache bash libstdc++ && \
     ln -s /usr/bin/grpc_php_plugin /usr/bin/protoc-gen-grpc-php && \
     ln -s /usr/bin/grpc_python_plugin /usr/bin/protoc-gen-grpc-python && \
     ln -s /usr/bin/grpc_ruby_plugin /usr/bin/protoc-gen-grpc-ruby && \
-    ln -s /usr/bin/protoc-gen-swiftgrpc /usr/bin/protoc-gen-grpc-swift
+    ln -s /usr/bin/protoc-gen-swiftgrpc /usr/bin/protoc-gen-grpc-swift && \
+    ln -s /usr/local/lib/node_modules/ts-protoc-gen/bin/protoc-gen-ts /usr/bin/protoc-gen-ts
 COPY protoc-wrapper /usr/bin/protoc-wrapper
 ENV LD_LIBRARY_PATH='/usr/lib:/usr/lib64:/usr/lib/local'
 ENTRYPOINT ["protoc-wrapper", "-I/usr/include"]
